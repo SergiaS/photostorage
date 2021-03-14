@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +24,6 @@ public class ImageRepositoryImpl implements ImageRepository {
     private RestTemplate restTemplate;
 
     public ImageRepositoryImpl() {
-//        this.restTemplate = restTemplate;
         inMemoryRepository = new HashMap<>();
         ENDPOINTS = Map.of(
                 "auth", "http://interview.agileengine.com/auth",                 // POST /auth
@@ -71,6 +71,7 @@ public class ImageRepositoryImpl implements ImageRepository {
         return page;
     }
 
+    // TODO: try to turn on deserializable (off NULL properties) for mapper, and remove @ from model
     public Image getImageDetails(String id) {
         String detailsResponse = null;
         try{
@@ -91,6 +92,34 @@ public class ImageRepositoryImpl implements ImageRepository {
     }
 
     public List<Image> search(String tag) {
-        return null;
+
+        // get page - iterate pictures and collect all id, if page property hasMore=true, do it again
+
+        boolean hasMorePage = true;
+        int pageNumber = 1;
+        List<Image> taggedImages = new ArrayList<>();
+
+        while (hasMorePage) {
+            Page page = getPageNumber(pageNumber++);
+            for (Image picture : page.getPictures()) {
+                String id = picture.getId();
+                Image imageDetails = getImageDetails(id);
+
+                System.out.println(imageDetails);
+                System.out.println(" === ");
+
+                // put all images to inmemory repo
+                inMemoryRepository.putIfAbsent(id, imageDetails);
+                // compare needed image properties to searched tag
+                if (imageDetails.getAuthor() != null && imageDetails.getCamera() != null && imageDetails.getTags() != null) {
+                    if (imageDetails.getAuthor().contains(tag) || imageDetails.getCamera().contains(tag) || imageDetails.getTags().contains("#"+tag)) {
+                        taggedImages.add(imageDetails);
+                    }
+                }
+            }
+            hasMorePage = page.isHasMore();
+        }
+        System.out.println("Founded " + taggedImages.size() + " images.");
+        return taggedImages;
     }
 }
