@@ -1,13 +1,15 @@
 package com.billable.photostorage.rest;
 
+import com.billable.photostorage.model.Image;
+import com.billable.photostorage.model.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -21,6 +23,7 @@ public class ImageRestController {
     private final Map<String, String> ENDPOINTS = Map.of(
             "auth", "http://interview.agileengine.com/auth",        // POST /auth
             "images", "http://interview.agileengine.com/images",    // GET  /images?page=2
+            "pageNumber", "http://interview.agileengine.com/images?page=",    // GET  /images?page=2
             "details", "http://interview.agileengine.com/images/",  // GET  /images/${id}
             "search", "http://interview.agileengine.com/search/"    // GET  /search/${searchTerm}
     );
@@ -31,40 +34,36 @@ public class ImageRestController {
         this.restTemplate = restTemplate;
     }
 
-    @GetMapping("/")
-    public void index() {
-        log.info(" GET / ");
-        System.out.println("    @@@     IT WORKS    @@@");
-    }
-
-    @GetMapping(value = "/images")
-    public void getPage() {
-        log.info(" >>> GET /images");
+    @GetMapping(value = "/images", params = "page")
+    public Page getPageNumber(@RequestParam("page") int pageId) {
+        log.info(" >>> GET /images?page={}", pageId);
 
         String stringResponseEntity = null;
         try {
             // if token has expired, getForObject returns UNAUTHORIZED and null
             // than interceptor of Spring restTemplate will refresh token and try again...
             while (stringResponseEntity == null) {
-                stringResponseEntity = restTemplate.getForObject(ENDPOINTS.get("images"), String.class);
+                stringResponseEntity = restTemplate.getForObject(ENDPOINTS.get("pageNumber") + pageId, String.class);
             }
         } catch (Exception e) {
             // if HttpClientErrorException$Unauthorized - 401 Unauthorized: [{"status":"Unauthorized"}]
             throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "There is some problem with server");
         }
 
-        Map<String, Object> responseMap = null;
+        Page page = null;
         try {
-            responseMap = new ObjectMapper().readValue(stringResponseEntity, new TypeReference<>() {});
+            page = new ObjectMapper().readValue(stringResponseEntity, Page.class);
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
-        printResponse(responseMap);
+        log.info(" > Page object {}", page);
+        return page;
     }
 
     @GetMapping("/images/{id}")
-    public void getDetails(@PathVariable String id) {
+    public Image getImageDetails(@PathVariable String id) {
         log.info(" >>> GET /images/{}", id);
+
         String detailsResponse = null;
         try{
             while (detailsResponse == null) {
@@ -74,19 +73,20 @@ public class ImageRestController {
             throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "There is some problem with server");
         }
 
-        Map<String, Object> responseMap = null;
+        Image responseImage = null;
         try {
-            responseMap = new ObjectMapper().readValue(detailsResponse, new TypeReference<>() {});
+            responseImage = new ObjectMapper().readValue(detailsResponse, Image.class);
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
-        printResponse(responseMap);
+        log.info(" > Image object {}", responseImage);
+        return responseImage;
     }
 
     @GetMapping("/search/{tag}")
-    public void search(@PathVariable String tag) {
+    public String search(@PathVariable String tag) {
         log.info(" >>> GET /search/{}", tag);
-
+        return "searching for " + tag;
     }
 
     public <T> void printResponse(Map<T, Object> responseMap) {
