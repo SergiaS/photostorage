@@ -25,7 +25,7 @@ public class ImageRestController {
     @GetMapping(value = "/images", params = "page")
     public Page getPageNumber(@RequestParam("page") int pageId) {
         log.info(" >>> GET /images?page={}", pageId);
-        return repository.getPageNumber(pageId);
+        return repository.getPageWithImages(pageId);
     }
 
     @GetMapping("/images/{id}")

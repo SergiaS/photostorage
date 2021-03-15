@@ -1,6 +1,7 @@
 package com.billable.photostorage.repository;
 
 import com.billable.photostorage.model.Image;
+import com.billable.photostorage.model.ImageDetails;
 import com.billable.photostorage.model.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,7 +18,7 @@ import java.util.Map;
 
 @Repository
 public class ImageRepositoryImpl implements ImageRepository {
-    private final Map<String, Image> inMemoryRepository;
+    private final Map<String, ImageDetails> inMemoryRepository;
     private final Map<String, String> ENDPOINTS;
 
     @Autowired
@@ -34,22 +35,22 @@ public class ImageRepositoryImpl implements ImageRepository {
         );
     }
 
-    public Map<String, Image> getInMemoryRepository() {
+    public Map<String, ImageDetails> getInMemoryRepository() {
         return inMemoryRepository;
     }
 
     @Override
-    public Image add(Image image) {
-        inMemoryRepository.putIfAbsent(image.getId(), image);
-        return image;
+    public ImageDetails add(ImageDetails imageDetails) {
+        inMemoryRepository.putIfAbsent(imageDetails.getId(), imageDetails);
+        return imageDetails;
     }
 
     @Override
-    public Image get(String id) {
+    public ImageDetails get(String id) {
         return inMemoryRepository.get(id);
     }
 
-    public Page getPageNumber(int pageId) {
+    public Page getPageWithImages(int pageId) {
         String stringResponseEntity = null;
         try {
             // if token has expired, getForObject returns UNAUTHORIZED and null
@@ -59,7 +60,7 @@ public class ImageRepositoryImpl implements ImageRepository {
             }
         } catch (Exception e) {
             // if HttpClientErrorException$Unauthorized - 401 Unauthorized: [{"status":"Unauthorized"}]
-            throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "There is some problem with server");
+            throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "There is some problem with server or your request!");
         }
 
         Page page = null;
@@ -72,19 +73,19 @@ public class ImageRepositoryImpl implements ImageRepository {
     }
 
     // TODO: try to turn on deserializable (off NULL properties) for mapper, and remove @ from model
-    public Image getImageDetails(String id) {
+    public ImageDetails getImageDetails(String id) {
         String detailsResponse = null;
-        try{
+        try {
             while (detailsResponse == null) {
                 detailsResponse = restTemplate.getForObject(ENDPOINTS.get("details") + id, String.class);
             }
         } catch (Exception e) {
-            throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "There is some problem with server");
+            throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "There is some problem with server or your request!");
         }
 
-        Image responseImage = null;
+        ImageDetails responseImage = null;
         try {
-            responseImage = new ObjectMapper().readValue(detailsResponse, Image.class);
+            responseImage = new ObjectMapper().readValue(detailsResponse, ImageDetails.class);
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
@@ -92,34 +93,44 @@ public class ImageRepositoryImpl implements ImageRepository {
     }
 
     public List<Image> search(String tag) {
-
-        // get page - iterate pictures and collect all id, if page property hasMore=true, do it again
-
-        boolean hasMorePage = true;
-        int pageNumber = 1;
         List<Image> taggedImages = new ArrayList<>();
+        if (inMemoryRepository.size() == 0) {
+            boolean hasMorePage = true;
+            int pageNumber = 1;
+            while (hasMorePage) {
+                Page page = getPageWithImages(pageNumber++);
+                for (Image cutImage : page.getPictures()) {
+                    String id = cutImage.getId();
+                    ImageDetails imageDetailsFromAPI = getImageDetails(id);
 
-        while (hasMorePage) {
-            Page page = getPageNumber(pageNumber++);
-            for (Image picture : page.getPictures()) {
-                String id = picture.getId();
-                Image imageDetails = getImageDetails(id);
+                    // put all images to inmemory repository
+                    inMemoryRepository.put(id, imageDetailsFromAPI);
 
-                System.out.println(imageDetails);
-                System.out.println(" === ");
-
-                // put all images to inmemory repo
-                inMemoryRepository.putIfAbsent(id, imageDetails);
-                // compare needed image properties to searched tag
-                if (imageDetails.getAuthor() != null && imageDetails.getCamera() != null && imageDetails.getTags() != null) {
-                    if (imageDetails.getAuthor().contains(tag) || imageDetails.getCamera().contains(tag) || imageDetails.getTags().contains("#"+tag)) {
-                        taggedImages.add(imageDetails);
+                    if (isImageHasTag(imageDetailsFromAPI, tag)) {
+                        System.out.println("Added from API: " + imageDetailsFromAPI + "\n");
+                        taggedImages.add(imageDetailsFromAPI);
                     }
                 }
+                hasMorePage = page.isHasMore();
             }
-            hasMorePage = page.isHasMore();
+        } else {
+            for (Map.Entry<String, ImageDetails> entry : inMemoryRepository.entrySet()) {
+                ImageDetails imageDetailsFromRepository = entry.getValue();
+                if (isImageHasTag(imageDetailsFromRepository, tag)) {
+                    System.out.println("Added from REPO: " + imageDetailsFromRepository + "\n");
+                    taggedImages.add(imageDetailsFromRepository);
+                }
+            }
         }
         System.out.println("Founded " + taggedImages.size() + " images.");
         return taggedImages;
+    }
+
+    public boolean isImageHasTag(ImageDetails imageDetails, String tag) {
+        // compare needed image properties to searched tag
+        String authorField = imageDetails.getAuthor() == null ? "" : imageDetails.getAuthor();
+        String cameraField = imageDetails.getCamera() == null ? "" : imageDetails.getCamera();
+        String tagsField = imageDetails.getTags() == null ? "" : imageDetails.getTags();
+        return authorField.contains(tag) || cameraField.contains(tag) || tagsField.contains("#" + tag);
     }
 }

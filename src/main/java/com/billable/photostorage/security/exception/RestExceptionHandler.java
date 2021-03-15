@@ -14,7 +14,7 @@ public class RestExceptionHandler {
 
     @ExceptionHandler(HttpClientErrorException.class)
     public ResponseEntity vehicleNotFound(HttpClientErrorException e) {
-        log.info("Token is invalid... {}", e.getMessage());
+        log.info("AUCHTUNG!!! PROBLEMO, SINIORITO... {}", e.getMessage());
         return ResponseEntity.noContent().build();
     }
 }

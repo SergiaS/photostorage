@@ -1,10 +1,10 @@
 package com.billable.photostorage.repository;
 
-import com.billable.photostorage.model.Image;
+import com.billable.photostorage.model.ImageDetails;
 
 public interface ImageRepository {
 
-    Image add(Image image);
+    ImageDetails add(ImageDetails image);
 
-    Image get(String id);
+    ImageDetails get(String id);
 }

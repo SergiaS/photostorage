@@ -7,13 +7,11 @@ import java.util.List;
 public class Page {
 
     private List<Image> pictures;
-
     @JsonProperty("page")
     private int pageNumber;
-
     private int pageCount;
-
     private boolean hasMore;
+
 
     public List<Image> getPictures() {
         return pictures;
